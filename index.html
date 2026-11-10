@@ -738,6 +738,19 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
 @keyframes h1Rise3d{from{opacity:0;transform:rotateX(-72deg) translateY(46px) translateZ(-160px);filter:blur(7px)}to{opacity:1;transform:none;filter:blur(0)}}
 .hero .hero-sub,.hero .hero-cta,.hero .ledger{animation-delay:.75s}
 
+/* the video plays in its own full-screen stage: the doors open onto the film, never onto the page */
+.hero .hero-media{transition:opacity .7s ease}
+html.vid-on .hero .hero-media{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;aspect-ratio:auto!important;z-index:150;background:#000}
+html.vid-on .hero .hero-media video{object-fit:cover;object-position:50% 38%}
+html.vid-on .vid-ctrl{bottom:calc(18px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px))}
+@media (max-aspect-ratio:1/1){
+  html.vid-on .hero .hero-media video{object-fit:contain;object-position:50% 50%}
+  html.vid-on .hero-still{filter:blur(22px) brightness(.42);transform:scale(1.25)}
+}
+html.vid-leave .hero .hero-media{opacity:0}
+html.vid-on .hero{position:relative;z-index:150!important;isolation:auto}
+html.vid-on .hero .hero-pin{z-index:150!important}
+
 </style>
 
 <header class="top">
@@ -1297,14 +1310,21 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
 
     // ---------- video
     function setSnd(){ if (!snd || !v) return; snd.textContent = v.muted ? '🔇 Attiva audio' : '🔊 Audio'; snd.classList.toggle('nudge', v.muted); }
-    function showEnd(){ root.classList.remove('vid-on','vid-run','hdr-hide'); ctrl.hidden = true; play.hidden = true; again.hidden = false; fx.start(); countUp(); }
+    function endNow(){ root.classList.remove('vid-on','vid-run','hdr-hide','vid-leave'); root.style.overflow = ''; ctrl.hidden = true; play.hidden = true; again.hidden = false; fx.start(); countUp(); }
+    function showEnd(){
+      if (root.classList.contains('vid-leave')) return;
+      if (!root.classList.contains('vid-on')){ endNow(); return; }
+      root.classList.add('vid-leave'); ctrl.hidden = true;
+      setTimeout(()=>{ try{ v && v.pause(); }catch(e){} window.scrollTo(0,0); endNow(); }, 720);
+    }
     function startVideo(sound){
       if (!v){ showEnd(); return; }
       play.hidden = true; again.hidden = true;
+      window.scrollTo(0,0); root.style.overflow = 'hidden';
       root.classList.add('vid-on','vid-run','hdr-hide');
       v.muted = !sound;
       const ok = ()=>{ ctrl.hidden = false; setSnd(); };
-      const fail = ()=>{ root.classList.remove('vid-on','hdr-hide'); play.hidden = false; fx.start(); countUp(); };
+      const fail = ()=>{ root.classList.remove('vid-on','hdr-hide'); root.style.overflow = ''; play.hidden = false; fx.start(); countUp(); };
       const p = v.play();
       if (p && p.then) p.then(ok).catch(()=>{
         if (!v.muted){ v.muted = true; const p2 = v.play(); if (p2 && p2.then) p2.then(ok).catch(fail); else ok(); }
@@ -1316,7 +1336,7 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
     if (v){
       v.addEventListener('ended', showEnd);
       v.addEventListener('timeupdate', ()=>{ if (root.classList.contains('vid-on') && v.duration && v.duration - v.currentTime < 1.5) showEnd(); });
-      v.addEventListener('error', ()=>{ root.classList.remove('vid-on'); ctrl.hidden = true; play.hidden = true; again.hidden = true; fx.start(); countUp(); });
+      v.addEventListener('error', ()=>{ root.classList.remove('vid-on'); root.style.overflow = ''; ctrl.hidden = true; play.hidden = true; again.hidden = true; fx.start(); countUp(); });
       again.addEventListener('click', ()=>{ v.currentTime = 0; startVideo(true); });
       skip.addEventListener('click', ()=>{ try{ v.pause(); if (v.duration) v.currentTime = Math.max(0, v.duration - .05); }catch(e){} showEnd(); });
       snd.addEventListener('click', ()=>{ v.muted = !v.muted; setSnd(); if (!v.muted && v.paused) v.play().catch(()=>{}); });
@@ -1339,7 +1359,7 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
           el.classList.add('p2','p3','p5','out');
           el.style.transition = 'opacity .45s ease'; el.style.opacity = '0';
           done(!!gesture);
-          setTimeout(()=>{ cancelAnimationFrame(raf); el.remove(); root.style.overflow = ''; }, 500);
+          setTimeout(()=>{ cancelAnimationFrame(raf); el.remove(); if (!root.classList.contains('vid-on')) root.style.overflow = ''; }, 500);
           return;
         }
         el.classList.add('p2','p3');
@@ -1354,7 +1374,7 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
             root.classList.add('vid-dolly'); el.classList.add('open');
           }));
         }, 460);
-        setTimeout(()=>{ cancelAnimationFrame(raf); el.remove(); root.style.overflow = ''; }, 460+2250);
+        setTimeout(()=>{ cancelAnimationFrame(raf); el.remove(); if (!root.classList.contains('vid-on')) root.style.overflow = ''; }, 460+2250);
         setTimeout(()=>root.classList.remove('vid-dolly'), 460+3200);
       }
       el.addEventListener('click', ()=>{ if (el.classList.contains('ask')){ el.classList.add('p4'); finish(false, true); } else finish(true, true); });
@@ -1400,11 +1420,11 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
           if (!finished || t < 6) raf = requestAnimationFrame(frame);
         }
         raf = requestAnimationFrame(frame);
-        at(2050, ()=>el.classList.add('p2'));
-        at(2600, ()=>el.classList.add('p3'));
-        at(4100, ()=>el.classList.add('p4'));
-        at(4300, ()=>el.classList.add('ask'));
-        at(9800, ()=>finish(false, false));
+        at(1750, ()=>el.classList.add('p2'));
+        at(2150, ()=>el.classList.add('p3'));
+        at(2300, ()=>el.classList.add('ask'));
+        at(3500, ()=>el.classList.add('p4'));
+        at(4000, ()=>finish(false, false));
       };
       img.onerror = ()=>finish(true);
       img.src = logoSrc;
@@ -1431,7 +1451,7 @@ html.vid-dolly .hero-media video{animation:heroDolly 2.9s cubic-bezier(.16,.7,.2
       const cover = document.querySelector('.cover'); if (cover) cover.addEventListener('pointerleave', ()=>{ cover.style.transform=''; });
     }
 
-    if (reduce){ play.hidden = false; countUp(); return; }
+    root.classList.add('force');
     cineDone = true;
     root.classList.add('hdr-hide');
     cine(g=>startVideo(g));
